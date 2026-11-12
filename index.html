@@ -30,6 +30,8 @@
   #status.error { color:#d13c3c; }
   pre { white-space:pre-wrap; word-wrap:break-word; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:16px; margin:0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size:.9rem; max-height:70vh; overflow:auto; }
   details summary { cursor:pointer; font-weight:600; }
+  #freeSteps { margin:0 0 14px; padding-left:22px; } #freeSteps li { margin-bottom:6px; } #freeSteps a { color:var(--accent); }
+  #rawWrap summary { margin-bottom:10px; color:var(--muted); }
   .out-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap; }
   .out-head h2 { margin:0; font-size:1.15rem; }
 </style>
@@ -90,7 +92,15 @@
         <button type="button" class="secondary" id="download">Unduh .txt</button>
       </div>
     </div>
-    <pre id="output"></pre>
+    <ol id="freeSteps" hidden>
+      <li>Prompt sudah <b>tersalin</b>. Buka tab Claude yang baru terbuka (atau <a href="https://claude.ai/new" target="_blank" rel="noopener">buka claude.ai</a>).</li>
+      <li>Tekan <b>Ctrl+V</b> (HP: tahan lalu Tempel), lalu kirim.</li>
+      <li><b>Master prompt Anda akan muncul di jawaban Claude.</b> Teks di bawah ini hanya instruksi untuk Claude, bukan hasilnya.</li>
+    </ol>
+    <details id="rawWrap" open>
+      <summary id="rawLabel" hidden>Lihat teks yang disalin (instruksi untuk Claude)</summary>
+      <pre id="output"></pre>
+    </details>
   </section>
 </main>
 
@@ -167,6 +177,13 @@ function setStatus(msg, isError = false) {
   status.className = isError ? 'error' : '';
 }
 
+// Free mode shows steps and hides the raw instruction text, so it isn't mistaken for the result.
+function setFreeView(free) {
+  $('freeSteps').hidden = !free;
+  $('rawLabel').hidden = !free;
+  $('rawWrap').open = !free;
+}
+
 function buildUserMsg() {
   const extra = $('extra').value.trim();
   return `Bahasa master prompt: ${$('lang').value}\n\nPermintaan singkat:\n${$('brief').value.trim()}` +
@@ -177,7 +194,8 @@ function buildUserMsg() {
 $('free').addEventListener('click', async () => {
   if (!$('form').reportValidity()) return;
   const full = `${SYSTEM_PROMPT}\n\n---\n\n${buildUserMsg()}`;
-  $('outTitle').textContent = 'Prompt untuk ditempel di claude.ai';
+  $('outTitle').textContent = 'Langkah berikutnya';
+  setFreeView(true);
   output.textContent = full;
   $('result').hidden = false;
   try {
@@ -220,6 +238,7 @@ $('form').addEventListener('submit', async e => {
     const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
     if (!text) throw new Error('Respons kosong dari API.');
     $('outTitle').textContent = 'Master prompt Anda';
+    setFreeView(false);
     output.textContent = text;
     $('result').hidden = false;
     $('result').scrollIntoView({ behavior: 'smooth' });
