@@ -41,7 +41,7 @@
 
   <div class="card">
     <details id="settings">
-      <summary>Pengaturan API</summary>
+      <summary>Pengaturan API <span class="hint">(opsional, untuk hasil langsung di sini; berbayar)</span></summary>
       <div class="row">
         <div>
           <label for="apiKey">Anthropic API key <span class="hint">(disimpan hanya di browser ini)</span></label>
@@ -76,14 +76,15 @@
       </div>
     </div>
     <div class="actions">
-      <button type="submit" id="go">Buat Master Prompt</button>
+      <button type="button" id="free">Gratis: Salin &amp; buka Claude</button>
+      <button type="submit" id="go" class="secondary">Buat di sini (API key)</button>
       <span id="status" role="status" aria-live="polite"></span>
     </div>
   </form>
 
   <section class="card" id="result" hidden>
     <div class="out-head">
-      <h2>Master prompt Anda</h2>
+      <h2 id="outTitle">Master prompt Anda</h2>
       <div class="actions" style="margin:0">
         <button type="button" class="secondary" id="copy">Salin</button>
         <button type="button" class="secondary" id="download">Unduh .txt</button>
@@ -158,7 +159,6 @@ const apiKey = $('apiKey'), model = $('model'), status = $('status'), output = $
 
 apiKey.value = localStorage.getItem('mpb_key') || '';
 model.value = localStorage.getItem('mpb_model') || model.value;
-if (!apiKey.value) $('settings').open = true;
 apiKey.addEventListener('change', () => localStorage.setItem('mpb_key', apiKey.value.trim()));
 model.addEventListener('change', () => localStorage.setItem('mpb_model', model.value));
 
@@ -167,14 +167,34 @@ function setStatus(msg, isError = false) {
   status.className = isError ? 'error' : '';
 }
 
+function buildUserMsg() {
+  const extra = $('extra').value.trim();
+  return `Bahasa master prompt: ${$('lang').value}\n\nPermintaan singkat:\n${$('brief').value.trim()}` +
+    (extra ? `\n\nInfo tambahan dari pengguna:\n${extra}` : '');
+}
+
+// Free mode: no API call; user pastes the combined prompt into claude.ai (works on the free plan).
+$('free').addEventListener('click', async () => {
+  if (!$('form').reportValidity()) return;
+  const full = `${SYSTEM_PROMPT}\n\n---\n\n${buildUserMsg()}`;
+  $('outTitle').textContent = 'Prompt untuk ditempel di claude.ai';
+  output.textContent = full;
+  $('result').hidden = false;
+  try {
+    await navigator.clipboard.writeText(full); // copy before opening the tab: clipboard needs page focus
+    setStatus('Tersalin! Tempel (Ctrl+V) di tab Claude yang baru terbuka, lalu kirim.');
+  } catch {
+    setStatus('Gagal menyalin otomatis. Salin prompt di bawah secara manual, lalu tempel di Claude.', true);
+  }
+  window.open('https://claude.ai/new', '_blank', 'noopener');
+});
+
 $('form').addEventListener('submit', async e => {
   e.preventDefault();
   const key = apiKey.value.trim();
-  if (!key) { $('settings').open = true; apiKey.focus(); return setStatus('Isi API key dulu di Pengaturan API.', true); }
+  if (!key) { $('settings').open = true; apiKey.focus(); return setStatus('Isi API key di Pengaturan API, atau pakai tombol Gratis.', true); }
 
-  const extra = $('extra').value.trim();
-  const userMsg = `Bahasa master prompt: ${$('lang').value}\n\nPermintaan singkat:\n${$('brief').value.trim()}` +
-    (extra ? `\n\nInfo tambahan dari pengguna:\n${extra}` : '');
+  const userMsg = buildUserMsg();
 
   go.disabled = true;
   setStatus('Menganalisis dan menyusun master prompt…');
@@ -199,6 +219,7 @@ $('form').addEventListener('submit', async e => {
     if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
     const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
     if (!text) throw new Error('Respons kosong dari API.');
+    $('outTitle').textContent = 'Master prompt Anda';
     output.textContent = text;
     $('result').hidden = false;
     $('result').scrollIntoView({ behavior: 'smooth' });
